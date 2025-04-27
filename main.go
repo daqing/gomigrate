@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -33,8 +35,8 @@ func main() {
 	switch command {
 	case "migrate":
 		migrate(os.Args[2:])
-	case "rollaback":
-		rollback()
+	case "rollback":
+		rollback(os.Args[2:])
 	case "status":
 		status()
 	case "generate", "g":
@@ -81,19 +83,123 @@ func migrate(args []string) {
 		return
 	}
 
+	run_sql(args, ".up.sql", "UP")
+}
+
+func rollback(args []string) {
+	if len(args) < 1 {
+		fmt.Printf("Usage: %s migrate [dir]\n", os.Args[0])
+		return
+	}
+
+	run_sql(args, ".down.sql", "DOWN")
+}
+
+func run_sql(args []string, extension string, action string) {
+	if len(args) < 1 {
+		fmt.Printf("Usage: %s migrate [dir]\n", os.Args[0])
+		return
+	}
+
 	dir := args[0]
 
 	fmt.Printf("Running migration files inside %s...\n", dir)
-}
 
-func rollback() {
-	fmt.Printf("Running rollback...\n")
+	ctx := context.Background()
+
+	conn := connect(ctx)
+	defer conn.Close(ctx)
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to read directory %s: %v\n", dir, err)
+		os.Exit(1)
+	}
+
+	var upFiles []os.DirEntry
+	for _, file := range files {
+		extLen := len(extension)
+		if !file.IsDir() && len(file.Name()) > extLen && file.Name()[len(file.Name())-extLen:] == extension {
+			upFiles = append(upFiles, file)
+		}
+	}
+
+	// sort files ascending
+	sort.Slice(upFiles, func(i, j int) bool {
+		return files[i].Name() < files[j].Name()
+	})
+
+	// run each sql file inside a transaction
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to begin transaction: %v\n", err)
+		os.Exit(1)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, file := range upFiles {
+		filePath := fmt.Sprintf("%s/%s", dir, file.Name())
+		sql, err := os.ReadFile(filePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to read file %s: %v\n", filePath, err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Running migration file %s...\n", file.Name())
+
+		_, err = tx.Exec(ctx, string(sql))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to execute file %s: %v\n", filePath, err)
+			tx.Rollback(ctx)
+			os.Exit(1)
+		}
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to commit transaction: %v\n", err)
+		os.Exit(1)
+	}
+
+	tx, err = conn.Begin(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to begin transaction: %v\n", err)
+		os.Exit(1)
+	}
+
+	defer tx.Rollback(ctx)
+	// update the migration table
+	for _, file := range upFiles {
+		filePart := strings.TrimSuffix(file.Name(), extension)
+		commandTag, err := tx.Exec(ctx, "INSERT INTO "+MIGRATE_TABLE_NAME+" (name, status) VALUES ($1, $2)", filePart, action)
+		fmt.Println("---> Command Tag: ", commandTag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to insert into table: %v\n", err)
+			tx.Rollback(ctx)
+			os.Exit(1)
+		}
+		if commandTag.RowsAffected() == 0 {
+			fmt.Fprintf(os.Stderr, "No rows affected: %v\n", err)
+			tx.Rollback(ctx)
+			os.Exit(1)
+		}
+
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to commit transaction: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Migration files inside %s executed successfully\n", dir)
 }
 
 func status() {
-	conn := connect()
-	defer conn.Close(context.Background())
-	rows, err := conn.Query(context.Background(), "SELECT * FROM "+MIGRATE_TABLE_NAME)
+	ctx := context.Background()
+	conn := connect(ctx)
+	defer conn.Close(ctx)
+	rows, err := conn.Query(ctx, "SELECT * FROM "+MIGRATE_TABLE_NAME)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to query table: %v\n", err)
 		os.Exit(1)
@@ -115,9 +221,9 @@ func status() {
 	}
 }
 
-func connect() *pgx.Conn {
+func connect(ctx context.Context) *pgx.Conn {
 	// urlExample := "postgres://username:password@localhost:5432/database_name"
-	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
+	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
@@ -127,10 +233,11 @@ func connect() *pgx.Conn {
 }
 
 func checkOrCreateTable() {
-	conn := connect()
+	ctx := context.Background()
+	conn := connect(ctx)
 
 	var n int64
-	err := conn.QueryRow(context.Background(), "select 1 from information_schema.tables where table_name = $1", MIGRATE_TABLE_NAME).Scan(&n)
+	err := conn.QueryRow(ctx, "select 1 from information_schema.tables where table_name = $1", MIGRATE_TABLE_NAME).Scan(&n)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			createMigrateTable(conn)
