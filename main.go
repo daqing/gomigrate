@@ -16,6 +16,12 @@ const (
 	MIGRATE_TABLE_NAME = "_gomigrate"
 )
 
+type MigrationStatus struct {
+	ID     int
+	Name   string
+	Status string
+}
+
 func main() {
 	// reading arguments
 	if len(os.Args) < 2 {
@@ -83,7 +89,16 @@ func migrate(args []string) {
 		return
 	}
 
-	run_sql(args, ".up.sql", "UP")
+	var lastUpFile string = ""
+	ms := currentStatus()
+	if len(ms) > 0 {
+		last := ms[len(ms)-1]
+		if last.Status == "UP" {
+			lastUpFile = last.Name
+		}
+	}
+
+	run_sql(args, ".up.sql", "UP", lastUpFile)
 }
 
 func rollback(args []string) {
@@ -92,10 +107,19 @@ func rollback(args []string) {
 		return
 	}
 
-	run_sql(args, ".down.sql", "DOWN")
+	var lastDownFile string = ""
+	ms := currentStatus()
+	if len(ms) > 0 {
+		last := ms[len(ms)-1]
+		if last.Status == "DOWN" {
+			lastDownFile = last.Name
+		}
+	}
+
+	run_sql(args, ".down.sql", "DOWN", lastDownFile)
 }
 
-func run_sql(args []string, extension string, action string) {
+func run_sql(args []string, extension string, action string, lastFile string) {
 	if len(args) < 1 {
 		fmt.Printf("Usage: %s migrate [dir]\n", os.Args[0])
 		return
@@ -129,6 +153,13 @@ func run_sql(args []string, extension string, action string) {
 		return files[i].Name() < files[j].Name()
 	})
 
+	upFileNames := make([]string, len(upFiles))
+	for i, file := range upFiles {
+		upFileNames[i] = file.Name()
+	}
+
+	upFileNames = skipMigrations(lastFile, upFileNames, extension)
+
 	// run each sql file inside a transaction
 	tx, err := conn.Begin(ctx)
 	if err != nil {
@@ -137,15 +168,15 @@ func run_sql(args []string, extension string, action string) {
 	}
 	defer tx.Rollback(ctx)
 
-	for _, file := range upFiles {
-		filePath := fmt.Sprintf("%s/%s", dir, file.Name())
+	for _, fileName := range upFileNames {
+		filePath := fmt.Sprintf("%s/%s", dir, fileName)
 		sql, err := os.ReadFile(filePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to read file %s: %v\n", filePath, err)
 			os.Exit(1)
 		}
 
-		fmt.Printf("Running migration file %s...\n", file.Name())
+		fmt.Printf("Running migration file %s...\n", fileName)
 
 		_, err = tx.Exec(ctx, string(sql))
 		if err != nil {
@@ -169,8 +200,8 @@ func run_sql(args []string, extension string, action string) {
 
 	defer tx.Rollback(ctx)
 	// update the migration table
-	for _, file := range upFiles {
-		filePart := strings.TrimSuffix(file.Name(), extension)
+	for _, fileName := range upFileNames {
+		filePart := strings.TrimSuffix(fileName, extension)
 		commandTag, err := tx.Exec(ctx, "INSERT INTO "+MIGRATE_TABLE_NAME+" (name, status) VALUES ($1, $2)", filePart, action)
 		fmt.Println("---> Command Tag: ", commandTag)
 		if err != nil {
@@ -195,7 +226,22 @@ func run_sql(args []string, extension string, action string) {
 	fmt.Printf("Migration files inside %s executed successfully\n", dir)
 }
 
-func status() {
+func skipMigrations(lastFile string, files []string, extension string) []string {
+	var result []string
+	for _, file := range files {
+		filePart := strings.TrimSuffix(file, extension)
+
+		if filePart <= lastFile {
+			// skip this file
+			continue
+		}
+
+		result = append(result, file)
+	}
+	return result
+}
+
+func currentStatus() []MigrationStatus {
 	ctx := context.Background()
 	conn := connect(ctx)
 	defer conn.Close(ctx)
@@ -206,18 +252,33 @@ func status() {
 	}
 	defer rows.Close()
 
-	fmt.Printf("Migration status:\n")
-
+	var ms []MigrationStatus
 	for rows.Next() {
 		var id int
 		var name, status string
-		var createdAt, updatedAt string
+		var createdAt, updatedAt time.Time
 		err := rows.Scan(&id, &name, &status, &createdAt, &updatedAt)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to scan row: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("ID: %d, Name: %s, Status: %s, Created At: %s, Updated At: %s\n", id, name, status, createdAt, updatedAt)
+
+		ms = append(ms, MigrationStatus{
+			ID:     id,
+			Name:   name,
+			Status: status,
+		})
+	}
+
+	return ms
+}
+
+func status() {
+	ms := currentStatus()
+
+	fmt.Printf("ID\tName\t\t\t\tStatus\n")
+	for _, m := range ms {
+		fmt.Printf("%d\t%s\t%s\n", m.ID, m.Name, m.Status)
 	}
 }
 
