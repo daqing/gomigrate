@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -21,6 +22,7 @@ func main() {
 		fmt.Printf("  migrate\n")
 		fmt.Printf("  rollback\n")
 		fmt.Printf("  status\n")
+		fmt.Printf("  generate(g)\n")
 
 		os.Exit(1)
 	}
@@ -30,18 +32,58 @@ func main() {
 	command := os.Args[1]
 	switch command {
 	case "migrate":
-		migrate()
+		migrate(os.Args[2:])
 	case "rollaback":
 		rollback()
 	case "status":
 		status()
+	case "generate", "g":
+		generate(os.Args[2:])
 	default:
 		fmt.Println("Unknown command:", command)
 	}
 }
 
-func migrate() {
-	fmt.Printf("Running migration...\n")
+func generate(args []string) {
+	if len(args) < 2 {
+		fmt.Printf("Usage: %s generate [migration_name] [dir]\n", os.Args[0])
+		return
+	}
+
+	name := args[0]
+	dir := args[1]
+	fmt.Printf("Generating migration file %s in %s...\n", name, dir)
+
+	timestamp := fmt.Sprintf("%s", time.Now().Format("20060102150405"))
+
+	upFile := fmt.Sprintf("%s/%s_%s.up.sql", dir, timestamp, name)
+	downFile := fmt.Sprintf("%s/%s_%s.down.sql", dir, timestamp, name)
+
+	// create empty files
+	err := os.WriteFile(upFile, []byte("-- up migration"), 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to create file %s: %v\n", upFile, err)
+		os.Exit(1)
+	}
+
+	err = os.WriteFile(downFile, []byte("-- down migration"), 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to create file %s: %v\n", downFile, err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Migration files %s and %s created successfully\n", upFile, downFile)
+}
+
+func migrate(args []string) {
+	if len(args) < 1 {
+		fmt.Printf("Usage: %s migrate [dir]\n", os.Args[0])
+		return
+	}
+
+	dir := args[0]
+
+	fmt.Printf("Running migration files inside %s...\n", dir)
 }
 
 func rollback() {
