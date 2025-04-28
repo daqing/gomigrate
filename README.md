@@ -4,7 +4,7 @@ gomigrate
 1. Running migrations:
 
     ```bash
-    gomigrate migrate [/path/to/migrations/folder] [VERSION]
+    gomigrate migrate [VERSION] [/path/to/migrations/folder]
     ```
 
     if VERSION is not given, it will run all migrations.
@@ -12,8 +12,14 @@ gomigrate
 2. Rollback migrations:
 
     ```bash
-    gomigrate rollback [/path/to/migrations/folder] [STEP]
+    gomigrate rollback [STEP] [/path/to/migrations/folder]
     ```
 
     if STEP is not given, it will be 1 by default.
+
+3. Check migration status:
+
+    ```bash
+    gomigrate status [/path/to/migrations/folder]
+    ```
 
