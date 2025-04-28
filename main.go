@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/daqing/gomigrate/lib"
+	"github.com/daqing/gomigrate/lib/status"
 	"github.com/daqing/gomigrate/migrate_up"
 	"github.com/daqing/gomigrate/rollback_to"
 )
@@ -38,7 +39,7 @@ func main() {
 	case "rollback":
 		rollback(os.Args[2:])
 	case "status":
-		status(os.Args[2:])
+		status.Show(os.Args[2:])
 	case "generate", "g":
 		generate(os.Args[2:])
 	default:
@@ -125,38 +126,5 @@ func rollback(args []string) {
 		rollback_to.Latest(dir)
 	} else {
 		rollback_to.Step(dir, step)
-	}
-}
-
-func status(args []string) {
-	if len(args) < 1 {
-		fmt.Printf("Usage: %s status [dir]\n", os.Args[0])
-		return
-	}
-
-	dir := args[0]
-	alreadyMigrated := lib.CurrentMigrated()
-
-	files, err := lib.DirEntries(dir, ".sql")
-	if err != nil {
-		fmt.Printf("Error reading directory %s: %v\n", dir, err)
-		os.Exit(1)
-	}
-
-	for _, fileName := range files {
-		ts, err := lib.ExtractTimestampPrefix(fileName)
-		if err != nil {
-			fmt.Printf("Error extracting timestamp from file %s: %v\n", fileName, err)
-			continue
-		}
-
-		var status string
-		if _, ok := alreadyMigrated[ts]; ok {
-			status = "UP"
-		} else {
-			status = "DOWN"
-		}
-
-		fmt.Printf("%s\t%s\n", fileName, status)
 	}
 }
