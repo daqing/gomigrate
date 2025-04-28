@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func All(dir string) {
+func All(dir, dsn string) {
 	ctx := context.Background()
 
 	files, err := lib.DirEntries(dir, ".up.sql")
@@ -17,8 +17,6 @@ func All(dir string) {
 		fmt.Fprintf(os.Stderr, "Unable to read directory %s: %v\n", dir, err)
 		os.Exit(1)
 	}
-
-	dsn := os.Getenv("DATABASE_URL")
 
 	alreadyMigrated := lib.CurrentMigrated(dsn)
 

@@ -3,14 +3,11 @@ package rollback_to
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/daqing/gomigrate/lib"
 )
 
-func Step(dir string, step int) {
-	dsn := os.Getenv("DATABASE_URL")
-
+func Step(dir string, step int, dsn string) {
 	alreadyMigrated := lib.CurrentMigrated(dsn).ToArray()
 
 	if len(alreadyMigrated) == 0 {

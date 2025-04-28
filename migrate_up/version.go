@@ -9,7 +9,7 @@ import (
 )
 
 // Migrate up to a specific version
-func Version(dir string, version string) {
+func Version(dir, version, dsn string) {
 	ctx := context.Background()
 
 	files, err := lib.DirEntries(dir, ".up.sql")
@@ -18,7 +18,6 @@ func Version(dir string, version string) {
 		os.Exit(1)
 	}
 
-	dsn := os.Getenv("DATABASE_URL")
 	alreadyMigrated := lib.CurrentMigrated(dsn)
 
 	conn := lib.Connect(ctx, dsn)

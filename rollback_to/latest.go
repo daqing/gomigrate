@@ -9,8 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func Latest(dir string) {
-	dsn := os.Getenv("DATABASE_URL")
+func Latest(dir, dsn string) {
 
 	alreadyMigrated := lib.CurrentMigrated(dsn).ToArray()
 

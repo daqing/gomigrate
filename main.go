@@ -74,10 +74,12 @@ func migrate(args []string) {
 		dir = args[0]
 	}
 
+	dsn := os.Getenv("DATABASE_URL")
+
 	if version == "" {
-		migrate_up.All(dir)
+		migrate_up.All(dir, dsn)
 	} else {
-		migrate_up.Version(dir, version)
+		migrate_up.Version(dir, version, dsn)
 	}
 }
 
@@ -102,9 +104,10 @@ func rollback(args []string) {
 		dir = args[0]
 	}
 
+	dsn := os.Getenv("DATABASE_URL")
 	if step <= 1 {
-		rollback_to.Latest(dir)
+		rollback_to.Latest(dir, dsn)
 	} else {
-		rollback_to.Step(dir, step)
+		rollback_to.Step(dir, step, dsn)
 	}
 }
