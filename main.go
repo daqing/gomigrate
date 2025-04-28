@@ -45,7 +45,8 @@ func main() {
 			fmt.Printf("Usage: %s status [dir]\n", os.Args[0])
 			return
 		}
-		status.Show(args[0])
+		dsn := os.Getenv("DATABASE_URL")
+		status.Show(args[0], dsn)
 	case "generate", "g":
 		args := os.Args[2:]
 		if len(args) < 2 {

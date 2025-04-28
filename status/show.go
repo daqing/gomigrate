@@ -8,9 +8,7 @@ import (
 	"github.com/daqing/gomigrate/lib"
 )
 
-func Show(dir string) {
-	dsn := os.Getenv("DATABASE_URL")
-
+func Show(dir string, dsn string) {
 	alreadyMigrated := lib.CurrentMigrated(dsn)
 
 	files, err := lib.DirEntries(dir, ".sql")
