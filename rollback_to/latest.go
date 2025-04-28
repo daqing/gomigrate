@@ -22,10 +22,7 @@ func Latest(dir string) {
 
 	ctx := context.Background()
 	conn := lib.Connect(ctx)
-	rollbackVersion(ctx, conn, dir, last)
-}
 
-func rollbackVersion(ctx context.Context, conn *pgx.Conn, dir string, version string) {
 	tx, err := conn.Begin(ctx)
 	if err != nil {
 		fmt.Printf("Unable to begin transaction: %v\n", err)
@@ -40,6 +37,19 @@ func rollbackVersion(ctx context.Context, conn *pgx.Conn, dir string, version st
 		return
 	}
 
+	err = rollbackVersion(ctx, tx, files, dir, last)
+	if err != nil {
+		fmt.Printf("Unable to rollback version %s: %v\n", last, err)
+		return
+	}
+	err = tx.Commit(ctx)
+	if err != nil {
+		fmt.Printf("Unable to commit transaction: %v\n", err)
+		return
+	}
+}
+
+func rollbackVersion(ctx context.Context, tx pgx.Tx, files []string, dir string, version string) error {
 	for _, fileName := range files {
 		ts, err := lib.ExtractTimestampPrefix(fileName)
 		if err != nil {
@@ -54,15 +64,12 @@ func rollbackVersion(ctx context.Context, conn *pgx.Conn, dir string, version st
 		migrateDown(ctx, tx, dir, fileName)
 		break
 	}
-	err = tx.Commit(ctx)
-	if err != nil {
-		fmt.Printf("Unable to commit transaction: %v\n", err)
-		return
-	}
+
 	// remove the migration version from the database
-	lib.RemoveMigrationVersion(ctx, conn, version)
+	lib.RemoveMigrationVersion(ctx, tx, version)
 
 	fmt.Printf("Migration %s rolled back successfully\n", version)
+	return nil
 }
 
 func migrateDown(ctx context.Context, tx pgx.Tx, dir string, fileName string) {

@@ -79,14 +79,17 @@ func generate(args []string) {
 
 func migrate(args []string) {
 	if len(args) < 1 {
-		fmt.Printf("Usage: %s migrate [dir]\n", os.Args[0])
+		fmt.Printf("Usage: %s migrate [version] [dir]\n", os.Args[0])
 		return
 	}
 
-	dir := args[0]
+	var dir string
 	var version string = ""
 	if len(args) > 1 {
-		version = args[1]
+		version = args[0]
+		dir = args[1]
+	} else {
+		dir = args[0]
 	}
 
 	if version == "" {
@@ -99,19 +102,23 @@ func migrate(args []string) {
 
 func rollback(args []string) {
 	if len(args) < 1 {
-		fmt.Printf("Usage: %s migrate [dir]\n", os.Args[0])
+		fmt.Printf("Usage: %s rollback [n] [dir]\n", os.Args[0])
 		return
 	}
 
-	dir := args[0]
+	var dir string
 	var step int = 1
 	var err error
 	if len(args) > 1 {
-		step, err = strconv.Atoi(args[1])
+		step, err = strconv.Atoi(args[0])
 		if err != nil {
 			fmt.Printf("Invalid step: %v\n", err)
+			fmt.Printf("Usage: %s rollback [n] [dir]\n", os.Args[0])
 			os.Exit(1)
 		}
+		dir = args[1]
+	} else {
+		dir = args[0]
 	}
 
 	if step <= 1 {
@@ -150,6 +157,6 @@ func status(args []string) {
 			status = "DOWN"
 		}
 
-		fmt.Printf("%s %s\n", fileName, status)
+		fmt.Printf("%s\t%s\n", fileName, status)
 	}
 }

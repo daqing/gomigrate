@@ -109,7 +109,6 @@ func SaveMigrationVersions(ctx context.Context, conn *pgx.Conn, versions []strin
 	// update the migration table
 	for _, version := range versions {
 		commandTag, err := tx.Exec(ctx, "INSERT INTO "+MIGRATE_TABLE_NAME+" (version) VALUES ($1)", version)
-		fmt.Println("---> Command Tag: ", commandTag)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to insert into table: %v\n", err)
 			tx.Rollback(ctx)
@@ -130,8 +129,8 @@ func SaveMigrationVersions(ctx context.Context, conn *pgx.Conn, versions []strin
 	}
 }
 
-func RemoveMigrationVersion(ctx context.Context, conn *pgx.Conn, version string) {
-	commandTag, err := conn.Exec(ctx, "DELETE FROM "+MIGRATE_TABLE_NAME+" WHERE version = $1", version)
+func RemoveMigrationVersion(ctx context.Context, tx pgx.Tx, version string) {
+	commandTag, err := tx.Exec(ctx, "DELETE FROM "+MIGRATE_TABLE_NAME+" WHERE version = $1", version)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to delete from table: %v\n", err)
 		return
