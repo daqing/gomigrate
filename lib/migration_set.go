@@ -21,9 +21,9 @@ func (ms MigrationSet) ToArray() []string {
 	return result
 }
 
-func CurrentMigrated() MigrationSet {
+func CurrentMigrated(dsn string) MigrationSet {
 	ctx := context.Background()
-	conn := Connect(ctx)
+	conn := Connect(ctx, dsn)
 	defer conn.Close(ctx)
 	rows, err := conn.Query(ctx, "SELECT * FROM "+MIGRATE_TABLE_NAME)
 	if err != nil {

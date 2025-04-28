@@ -10,7 +10,9 @@ import (
 )
 
 func Latest(dir string) {
-	alreadyMigrated := lib.CurrentMigrated().ToArray()
+	dsn := os.Getenv("DATABASE_URL")
+
+	alreadyMigrated := lib.CurrentMigrated(dsn).ToArray()
 
 	// rollback the last migration
 	if len(alreadyMigrated) == 0 {
@@ -21,7 +23,7 @@ func Latest(dir string) {
 	last := alreadyMigrated[len(alreadyMigrated)-1]
 
 	ctx := context.Background()
-	conn := lib.Connect(ctx)
+	conn := lib.Connect(ctx, dsn)
 
 	tx, err := conn.Begin(ctx)
 	if err != nil {

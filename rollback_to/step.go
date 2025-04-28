@@ -3,12 +3,15 @@ package rollback_to
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/daqing/gomigrate/lib"
 )
 
 func Step(dir string, step int) {
-	alreadyMigrated := lib.CurrentMigrated().ToArray()
+	dsn := os.Getenv("DATABASE_URL")
+
+	alreadyMigrated := lib.CurrentMigrated(dsn).ToArray()
 
 	if len(alreadyMigrated) == 0 {
 		fmt.Printf("Already at the latest migration\n")
@@ -21,7 +24,8 @@ func Step(dir string, step int) {
 	}
 
 	ctx := context.Background()
-	conn := lib.Connect(ctx)
+
+	conn := lib.Connect(ctx, dsn)
 	defer conn.Close(ctx)
 
 	tx, err := conn.Begin(ctx)

@@ -63,9 +63,9 @@ func ExtractTimestampPrefix(filename string) (string, error) {
 	return timestamp, nil
 }
 
-func CheckOrCreateTable() {
+func CheckOrCreateTable(dsn string) {
 	ctx := context.Background()
-	conn := Connect(ctx)
+	conn := Connect(ctx, dsn)
 
 	var n int64
 	err := conn.QueryRow(ctx, "select 1 from information_schema.tables where table_name = $1", MIGRATE_TABLE_NAME).Scan(&n)

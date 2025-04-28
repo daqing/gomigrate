@@ -18,9 +18,11 @@ func All(dir string) {
 		os.Exit(1)
 	}
 
-	alreadyMigrated := lib.CurrentMigrated()
+	dsn := os.Getenv("DATABASE_URL")
 
-	conn := lib.Connect(ctx)
+	alreadyMigrated := lib.CurrentMigrated(dsn)
+
+	conn := lib.Connect(ctx, dsn)
 	defer conn.Close(ctx)
 
 	// run each sql file inside a transaction

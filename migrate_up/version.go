@@ -18,9 +18,10 @@ func Version(dir string, version string) {
 		os.Exit(1)
 	}
 
-	alreadyMigrated := lib.CurrentMigrated()
+	dsn := os.Getenv("DATABASE_URL")
+	alreadyMigrated := lib.CurrentMigrated(dsn)
 
-	conn := lib.Connect(ctx)
+	conn := lib.Connect(ctx, dsn)
 	defer conn.Close(ctx)
 
 	// run each sql file inside a transaction
